@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: pywave-windows
+          - os: macos-14
+            artifact: pywave-macos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test and build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev]" build
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Build Python distributions
+        run: python -m build
+
+      - name: Create Windows release bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item dist\* release\
+          Compress-Archive -Path release\* -DestinationPath "${{ matrix.artifact }}-${{ github.ref_name }}.zip" -Force
+
+      - name: Create macOS release bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p release
+          cp dist/* release/
+          tar -czf "${{ matrix.artifact }}-${GITHUB_REF_NAME}.tar.gz" -C release .
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}-${{ github.ref_name }}
+          path: |
+            *.zip
+            *.tar.gz
+
+      - name: Attach to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.zip
+            *.tar.gz

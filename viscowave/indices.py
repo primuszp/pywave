@@ -352,7 +352,10 @@ def compute_area(
     if d0 == 0:
         return 0.0
     d_norm = d / d0
-    return float(np.trapz(d_norm, r))
+    trapezoid = getattr(np, "trapezoid", None)
+    if trapezoid is None:  # pragma: no cover - compatibility with older NumPy
+        trapezoid = np.trapz
+    return float(trapezoid(d_norm, r))
 
 
 def compute_sci(d0_mm: float, d300_mm: float) -> float:

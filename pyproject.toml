@@ -1,17 +1,20 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "viscowave"
-version = "2.1.1"
+version = "2.2.0"
 description = "Python wrapper and analysis tools for ViscoWave pavement FWD analysis"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = ["numpy>=1.20"]
-license = {text = "AGPL-3.0-or-later"}
+license = "AGPL-3.0-or-later"
 authors = [
-    {name = "pywave contributors"}
+    {name = "H.S. Lee"}
+]
+maintainers = [
+    {name = "primuszp"}
 ]
 keywords = ["pavement", "viscoelastic", "FWD", "backcalculation", "deflection", "engineering"]
 classifiers = [
@@ -23,10 +26,10 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
-    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
 ]
 
 [project.optional-dependencies]
@@ -59,3 +62,6 @@ include-package-data = true
 
 [tool.setuptools.package-data]
 viscowave = ["*.dll", "*.so", "*.dylib", "README.md", "py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

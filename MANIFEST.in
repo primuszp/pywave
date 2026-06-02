@@ -1,0 +1,29 @@
+# Include native libraries
+recursive-include viscowave *.dll *.so *.dylib
+
+# Include package data
+include viscowave/README.md
+include viscowave/py.typed
+
+# Include main documentation
+include README.md
+include LICENSE
+
+# Include docs directory
+recursive-include docs *.md
+
+# Include examples
+recursive-include examples *.py
+include examples/README.md
+
+# Include helper scripts
+include install_dev.sh
+include run_example.sh
+
+# Exclude build artifacts
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .DS_Store
+prune csrc/*/build*
+prune build
+prune dist

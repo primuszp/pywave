@@ -51,6 +51,8 @@ See [LICENSE](LICENSE) for the full license text.
 | JILS *.THY time history reader | — | `read_jils_thy()`, auto-loaded with DAT |
 | Dynatest *.FWD reader | — | `read_dynatest()` |
 | Kuab *.fwd reader | — | `read_kuab()` |
+| Automatic FWD format detection | — | `read_fwd()` |
+| Tabular FWD export | — | `FWDDataset.to_records()`, `FWDDataset.to_dataframe()` |
 | Deflection basin indices (SCI, BDI, BCI, AREA) | Excel formulas | `indices.DeflectionBasin` |
 | Subgrade modulus estimate (Boussinesq) | Excel | `compute_subgrade_modulus()` |
 | AASHTO Structural Number estimate | Excel | `compute_structural_number_fwd()` |
@@ -96,7 +98,7 @@ pip install -e ".[dev]"
 - matplotlib >= 3.4 *(optional)*
 - pint >= 0.21 *(optional, for unit-aware inputs)*
 
-**Platform support:** Windows x64, macOS (Intel x86\_64 + Apple Silicon ARM64), Linux x64
+**Platform support:** Windows x64 and macOS (Intel x86\_64 + Apple Silicon ARM64) with packaged native libraries. Linux source-build support is documented, but Linux binaries are not included in the current release bundle.
 
 ---
 
@@ -128,7 +130,7 @@ plt.xlabel("Time (ms)"); plt.ylabel("Deflection (mm)")
 ### 2. Load FWD data (with time histories)
 
 ```python
-from viscowave.fwd_io import read_jils
+from viscowave.fwd_io import read_fwd, read_jils
 
 # Load JILS FWD survey — THY time history file auto-loaded if present
 ds = read_jils(
@@ -136,6 +138,10 @@ ds = read_jils(
     sensor_offsets_mm=[0, 200, 300, 450, 600, 900, 1200, 1500, 1800],
 )
 print(ds)  # FWDDataset(device='JILS', stations=10, drops=30)
+
+# Or let pywave choose the reader from the file extension/header
+ds_auto = read_fwd("sample/JILS_Sample.DAT")
+rows = ds_auto.to_records()  # plain dictionaries, ready for reporting/export
 
 # Iterate representative drops (drop 2 = first test drop after seating)
 for drop in ds.representative_drops(drop_number=2):
@@ -256,7 +262,7 @@ print(f"Viscoelastic max deflection: {result.max_displacement('mm'):.3f} mm")
 
 ```
 viscowave/
-├── __init__.py          # Public API, version 2.1.1
+├── __init__.py          # Public API, version 2.2.0
 │
 ├── FORWARD ANALYSIS (core — wraps ViscoWave C++ library by H.S. Lee)
 ├── builders.py          # AnalysisBuilder (fluent API), AnalysisResult
@@ -300,8 +306,8 @@ pywave with informative error messages):
 
 ## Building the C++ libraries from source
 
-The precompiled binaries for Windows (x64), macOS (Intel x86\_64 + ARM64 universal),
-and Linux x64 are included in the package. To recompile from source:
+The precompiled binaries for Windows (x64) and macOS (Intel x86\_64 + ARM64 universal)
+are included in the package. To recompile from source:
 
 - [BUILD_WINDOWS.md](csrc/ViscoWave_portable/BUILD_WINDOWS.md)
 - [BUILD_MACOS.md](csrc/ViscoWave_portable/BUILD_MACOS.md)

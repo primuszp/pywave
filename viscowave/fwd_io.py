@@ -31,6 +31,7 @@ __all__ = [
     "FWDDrop",
     "FWDTimeHistory",
     "FWDDataset",
+    "read_fwd",
     "read_jils",
     "read_jils_thy",
     "read_dynatest",
@@ -204,11 +205,111 @@ class FWDDataset:
             out[i, : drop.num_sensors] = drop.deflections_mm
         return out
 
+    def load_vector(self, drop_number: int = 2) -> np.ndarray:
+        """Return representative peak loads in kN, one value per station."""
+        return np.asarray([d.load_kN for d in self.representative_drops(drop_number)], dtype=np.float64)
+
+    def to_records(self, drop_number: int | None = None) -> List[dict]:
+        """
+        Convert drops to plain Python dictionaries.
+
+        Args:
+            drop_number: If given, include only that drop number.  If None, include
+                         every parsed drop.
+        """
+        rows = []
+        selected = self.drops if drop_number is None else [d for d in self.drops if d.drop_number == drop_number]
+        for drop in selected:
+            row = {
+                "station": drop.station,
+                "drop_number": drop.drop_number,
+                "distance_m": drop.distance_m,
+                "load_kN": drop.load_kN,
+                "load_radius_mm": drop.load_radius_mm,
+                "pavement_temp_C": drop.pavement_temp_C,
+                "air_temp_C": drop.air_temp_C,
+                "gps_lat": drop.gps_lat,
+                "gps_lon": drop.gps_lon,
+                "notes": drop.notes,
+            }
+            for i, offset in enumerate(drop.sensor_offsets_mm):
+                row[f"D{int(round(float(offset)))}_mm"] = float(drop.deflections_mm[i])
+            rows.append(row)
+        return rows
+
+    def to_dataframe(self, drop_number: int | None = None):
+        """
+        Return a pandas DataFrame of parsed FWD drops.
+
+        pandas is optional; install with ``pip install viscowave[analysis]``.
+        """
+        try:
+            import pandas as pd  # type: ignore
+        except ImportError as exc:
+            raise ImportError(
+                "pandas is required for FWDDataset.to_dataframe(). "
+                "Install it with: pip install viscowave[analysis]"
+            ) from exc
+        return pd.DataFrame.from_records(self.to_records(drop_number=drop_number))
+
     def __repr__(self) -> str:
         return (
             f"FWDDataset(device={self.device_type!r}, "
             f"stations={self.num_stations}, drops={self.num_drops})"
         )
+
+
+def read_fwd(
+    file: str | Path,
+    sensor_offsets_mm: Optional[Sequence[float]] = None,
+    load_plate_radius_mm: float = 150.0,
+    skip_seating: bool = False,
+    **kwargs,
+) -> FWDDataset:
+    """
+    Read an FWD measurement file with automatic format detection.
+
+    Supported inputs:
+      - JILS ``*.DAT`` with optional companion ``*.THY``
+      - Dynatest ``*.FWD`` text files
+      - Kuab ``*.fwd`` text files
+
+    For ambiguous ``*.fwd`` files, a lightweight header/content heuristic is used.
+    Pass the format-specific reader directly when you need strict control.
+    """
+    path = Path(file)
+    suffix = path.suffix.lower()
+    common = {
+        "sensor_offsets_mm": sensor_offsets_mm,
+        "load_plate_radius_mm": load_plate_radius_mm,
+        "skip_seating": skip_seating,
+    }
+    common.update(kwargs)
+
+    if suffix == ".dat":
+        return read_jils(path, **common)
+
+    if suffix == ".fwd":
+        try:
+            with open(path, encoding="latin-1") as fh:
+                head = "\n".join(fh.readline() for _ in range(40)).lower()
+        except FileNotFoundError:
+            raise
+        except Exception as exc:
+            raise IOError(f"Cannot read FWD file header: {exc}") from exc
+
+        if any(marker in head for marker in ("dynatest", "elmod", "geophone", "geoph")):
+            return read_dynatest(path, **common)
+        if any(marker in head for marker in ("kuab", "sensors", "operator:")):
+            return read_kuab(path, **common)
+
+        # Dynatest text records are the most common uppercase/lowercase .FWD export.
+        return read_dynatest(path, **common)
+
+    raise ValueError(
+        f"Unsupported FWD file extension {path.suffix!r}. "
+        "Use read_jils(), read_dynatest(), or read_kuab() for custom formats."
+    )
 
 
 # ---------------------------------------------------------------------------

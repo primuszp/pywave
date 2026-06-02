@@ -9,7 +9,7 @@ FWD data I/O, deflection basin indices, backcalculation, and dynamic modulus.
 Platform Support:
     - Windows x64 (x86 via Win32 DLL)
     - macOS (Intel x86_64 + Apple Silicon ARM64 universal binary)
-    - Linux x64
+    - Linux source-build support
 
 Quick start::
 
@@ -98,8 +98,8 @@ from . import dynmod
 if TYPE_CHECKING:
     pass
 
-__version__ = "2.1.1"
-__author__ = "pywave contributors"
+__version__ = "2.2.0"
+__author__ = "H.S. Lee; pywave maintainers"
 __all__ = [
     # Modern High-Level API (Recommended)
     "AnalysisBuilder",
