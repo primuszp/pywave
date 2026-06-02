@@ -93,7 +93,7 @@ pip install -e ".[dev]"
 ```
 
 **Requirements:**
-- Python 3.9–3.12
+- Python 3.9–3.13
 - numpy >= 1.20
 - scipy >= 1.7 *(optional, required for backcalculation)*
 - pandas >= 1.3 *(optional)*
@@ -107,6 +107,25 @@ Dynatest Access database import requires the optional Access/ODBC dependency:
 ```bash
 pip install "viscowave[access]"
 ```
+
+---
+
+## Release v2.3.0 Highlights
+
+This release ports the ViscoWave V3 FWD import scripts from
+`C:\ProgramData\ARA\ViscoWave_V3` into Python:
+
+- `Dynatest.r` → `read_dynatest_access()` for Dynatest Access databases
+  (`*.mdb`, `*.accdb`) with `Drops`, `Stations`, and `Histories` tables.
+- `Kuab.r` → `read_kuab_folder()` for Kuab folders containing UTF-16 `*.fwd`
+  peak deflection files and optional `*.HST` time-history files.
+- Both imported time-history workflows resample to ViscoWave's standard
+  0.0002 s time step over 0.0598 s and return `FWDTimeHistory` objects.
+- `read_fwd()` now auto-detects JILS files, Dynatest Access databases,
+  Dynatest text files, Kuab peak files, and Kuab folders.
+
+Dynatest Access import depends on a local Microsoft Access ODBC driver and
+`pyodbc`; the rest of the FWD readers have no Access/ODBC dependency.
 
 ---
 
@@ -138,7 +157,7 @@ plt.xlabel("Time (ms)"); plt.ylabel("Deflection (mm)")
 ### 2. Load FWD data (with time histories)
 
 ```python
-from viscowave.fwd_io import read_fwd, read_jils, read_kuab_folder
+from viscowave.fwd_io import read_dynatest_access, read_fwd, read_jils, read_kuab_folder
 
 # Load JILS FWD survey — THY time history file auto-loaded if present
 ds = read_jils(
@@ -153,6 +172,9 @@ rows = ds_auto.to_records()  # plain dictionaries, ready for reporting/export
 
 # Kuab ViscoWave V3 folders can be loaded as a peak + time-history workflow
 kuab_ds = read_kuab_folder("path/to/kuab_folder")
+
+# Dynatest Access database workflow ported from Dynatest.r
+dynatest_ds = read_dynatest_access("path/to/dynatest.accdb")
 
 # Iterate representative drops (drop 2 = first test drop after seating)
 for drop in ds.representative_drops(drop_number=2):
@@ -283,7 +305,8 @@ viscowave/
 │
 ├── PYTHON ANALYSIS TOOLS (new in pywave — Python equivalents of Excel worksheets)
 ├── fwd_io.py            # FWD readers: read_jils(), read_jils_thy(),
-│                        #   read_dynatest(), read_kuab()
+│                        #   read_dynatest_access(), read_dynatest(),
+│                        #   read_kuab(), read_kuab_folder(), read_fwd()
 │                        #   FWDDrop, FWDTimeHistory, FWDDataset
 ├── indices.py           # DeflectionBasin, SCI/BDI/BCI/AREA/SN indices
 ├── backcalc.py          # backcalculate(), backcalculate_batch() (scipy L-BFGS-B)
