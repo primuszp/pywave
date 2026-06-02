@@ -4,15 +4,15 @@ FWD (Falling Weight Deflectometer) data file readers.
 
 Supported formats:
   - JILS  : *.DAT + *.THY file pairs (JILS FWD devices)
-  - Dynatest: *.FWD text format (Dynatest FWD devices)
-  - Kuab  : *.fwd plain-text format (Kuab FWD devices)
+  - Dynatest: Access *.mdb/*.accdb databases and *.FWD text files
+  - Kuab  : UTF-16 *.fwd peak files plus optional *.HST time histories
 
 All readers return FWDDataset objects with consistent field names and SI units
 (deflections in mm, load in kN, offsets in mm).
 
 Typical usage::
 
-    from viscowave.fwd_io import read_jils, read_dynatest
+    from viscowave.fwd_io import read_fwd, read_jils, read_kuab_folder
 
     ds = read_jils("survey.DAT", sensor_offsets_mm=[0, 200, 300, 450, 600, 900, 1200, 1500, 1800])
     for drop in ds.drops:
@@ -35,8 +35,15 @@ __all__ = [
     "read_jils",
     "read_jils_thy",
     "read_dynatest",
+    "read_dynatest_access",
     "read_kuab",
+    "read_kuab_folder",
 ]
+
+_DEFAULT_OFFSETS_MM = np.array([0, 200, 300, 450, 600, 900, 1200, 1500, 1800], dtype=np.float64)
+_MILS_TO_MM = 0.0254
+_LB_TO_KN = 0.0044482216152605
+_KIP_TO_KN = 4.44822
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -271,13 +278,23 @@ def read_fwd(
 
     Supported inputs:
       - JILS ``*.DAT`` with optional companion ``*.THY``
+      - Dynatest Access databases ``*.mdb`` / ``*.accdb``
       - Dynatest ``*.FWD`` text files
-      - Kuab ``*.fwd`` text files
+      - Kuab UTF-16 ``*.fwd`` text files
 
     For ambiguous ``*.fwd`` files, a lightweight header/content heuristic is used.
     Pass the format-specific reader directly when you need strict control.
     """
     path = Path(file)
+    if path.is_dir():
+        return read_kuab_folder(
+            path,
+            sensor_offsets_mm=sensor_offsets_mm,
+            load_plate_radius_mm=load_plate_radius_mm,
+            skip_seating=skip_seating,
+            **kwargs,
+        )
+
     suffix = path.suffix.lower()
     common = {
         "sensor_offsets_mm": sensor_offsets_mm,
@@ -289,15 +306,19 @@ def read_fwd(
     if suffix == ".dat":
         return read_jils(path, **common)
 
+    if suffix in {".mdb", ".accdb"}:
+        return read_dynatest_access(path, **common)
+
     if suffix == ".fwd":
         try:
-            with open(path, encoding="latin-1") as fh:
-                head = "\n".join(fh.readline() for _ in range(40)).lower()
+            head = "\n".join(_read_text_lines(path)[:40]).lower()
         except FileNotFoundError:
             raise
         except Exception as exc:
             raise IOError(f"Cannot read FWD file header: {exc}") from exc
 
+        if "ikuab" in head:
+            return read_kuab(path, **common)
         if any(marker in head for marker in ("dynatest", "elmod", "geophone", "geoph")):
             return read_dynatest(path, **common)
         if any(marker in head for marker in ("kuab", "sensors", "operator:")):
@@ -309,6 +330,70 @@ def read_fwd(
     raise ValueError(
         f"Unsupported FWD file extension {path.suffix!r}. "
         "Use read_jils(), read_dynatest(), or read_kuab() for custom formats."
+    )
+
+
+def _float_or_nan(value) -> float:
+    if value is None or value == "":
+        return np.nan
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return np.nan
+
+
+def _first_present(row: dict, *names: str, default=None):
+    lower_map = {str(k).lower(): v for k, v in row.items()}
+    for name in names:
+        if name in row:
+            return row[name]
+        value = lower_map.get(name.lower())
+        if value is not None:
+            return value
+    return default
+
+
+def _standard_time_seconds(duration: float = 0.0598, dt: float = 0.0002) -> np.ndarray:
+    count = int(round(duration / dt)) + 1
+    return np.linspace(0.0, duration, count, dtype=np.float64)
+
+
+def _resample_columns(
+    time_s: Sequence[float],
+    force: Sequence[float],
+    displacements: Sequence[Sequence[float]],
+    *,
+    station: str,
+    drop_number: int,
+    force_scale: float,
+    displacement_scale: float,
+    target_time_s: Optional[np.ndarray] = None,
+) -> FWDTimeHistory:
+    source_t = np.asarray(time_s, dtype=np.float64)
+    order = np.argsort(source_t)
+    source_t = source_t[order]
+    target_t = _standard_time_seconds() if target_time_s is None else np.asarray(target_time_s, dtype=np.float64)
+
+    force_arr = np.asarray(force, dtype=np.float64)[order]
+    force_out = np.interp(target_t, source_t, force_arr, left=force_arr[0], right=force_arr[-1]) * force_scale
+
+    disp_arr = np.asarray(displacements, dtype=np.float64)
+    if disp_arr.ndim == 1:
+        disp_arr = disp_arr.reshape(1, -1)
+    disp_arr = disp_arr[:, order]
+    disp_out = np.vstack(
+        [
+            np.interp(target_t, source_t, row, left=row[0], right=row[-1])
+            for row in disp_arr
+        ]
+    ) * displacement_scale
+
+    return FWDTimeHistory(
+        time_ms=target_t * 1000.0,
+        force_kN=force_out,
+        displacements_mm=disp_out,
+        station=station,
+        drop_number=drop_number,
     )
 
 
@@ -650,6 +735,164 @@ def read_jils_thy(
 # Dynatest reader
 # ---------------------------------------------------------------------------
 
+def read_dynatest_access(
+    access_file: str | Path,
+    sensor_offsets_mm: Optional[Sequence[float]] = None,
+    load_plate_radius_mm: float = 150.0,
+    skip_seating: bool = False,
+    load_histories: bool = True,
+) -> FWDDataset:
+    """
+    Read a Dynatest Access database exported by the ViscoWave V3 workflow.
+
+    The original ViscoWave R script reads ``Drops``, ``Stations`` and
+    ``Histories`` tables through ODBC.  This Python implementation follows the
+    same table contract and converts the result to :class:`FWDDataset`.
+
+    Expected native units in the database are the same as the R export:
+    peak/time-history force in pounds, deflections in mils, and history time in
+    milliseconds.  Values are converted to kN, mm, and ``FWDTimeHistory``.
+
+    Requires ``pyodbc`` and a Microsoft Access ODBC driver.
+    """
+    db_path = Path(access_file)
+    if not db_path.exists():
+        raise FileNotFoundError(f"Dynatest Access file not found: {db_path}")
+
+    try:
+        import pyodbc  # type: ignore
+    except ImportError as exc:
+        raise ImportError(
+            "pyodbc and the Microsoft Access ODBC driver are required for "
+            "read_dynatest_access(). Install pyodbc and retry."
+        ) from exc
+
+    def _rows(table: str) -> List[dict]:
+        cursor = con.cursor()
+        cursor.execute(f"SELECT * FROM [{table}]")
+        columns = [c[0] for c in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    conn_str = (
+        "DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};"
+        f"DBQ={db_path};"
+    )
+    try:
+        con = pyodbc.connect(conn_str)
+    except Exception as exc:
+        raise IOError(f"Cannot open Dynatest Access database via ODBC: {exc}") from exc
+
+    try:
+        drops_rows = _rows("Drops")
+        stations_rows = _rows("Stations")
+        history_rows = _rows("Histories") if load_histories else []
+    finally:
+        con.close()
+
+    offsets = np.asarray(sensor_offsets_mm, dtype=np.float64) if sensor_offsets_mm is not None else _DEFAULT_OFFSETS_MM
+    stations_by_id = {
+        str(_first_present(row, "StationID")): row
+        for row in stations_rows
+    }
+
+    ds = FWDDataset(
+        source_file=str(db_path),
+        device_type="Dynatest",
+        sensor_offsets_mm=offsets,
+    )
+
+    drops_sorted = sorted(
+        drops_rows,
+        key=lambda r: (
+            _float_or_nan(_first_present(r, "StationID", default=0)),
+            _float_or_nan(_first_present(r, "DropID", default=0)),
+        ),
+    )
+    station_counts: Dict[str, int] = {}
+    drop_no_by_id: Dict[str, int] = {}
+
+    for row in drops_sorted:
+        station_id = str(_first_present(row, "StationID", default=""))
+        station_row = stations_by_id.get(station_id, {})
+        drop_id = str(_first_present(row, "DropID", default=""))
+        station_counts[station_id] = station_counts.get(station_id, 0) + 1
+        drop_no = station_counts[station_id]
+        drop_no_by_id[drop_id] = drop_no
+
+        if skip_seating and drop_no == 1:
+            continue
+
+        deflections = []
+        for i in range(1, 10):
+            value = _first_present(row, f"D{i}", default=None)
+            if value is None:
+                continue
+            deflections.append(_float_or_nan(value) * _MILS_TO_MM)
+        defl_arr = np.asarray(deflections, dtype=np.float64)
+
+        station_label = str(_first_present(station_row, "Station", default=station_id))
+        load_lb = _float_or_nan(_first_present(row, "Force", "Load", default=np.nan))
+        drop = FWDDrop(
+            station=station_label,
+            drop_number=drop_no,
+            distance_m=_float_or_nan(_first_present(station_row, "Station", default=station_id)),
+            load_kN=load_lb * _LB_TO_KN,
+            deflections_mm=defl_arr,
+            sensor_offsets_mm=offsets[: len(defl_arr)],
+            load_radius_mm=load_plate_radius_mm,
+            pavement_temp_C=_float_or_nan(
+                _first_present(row, "Surface", "SurfaceTemperature", default=_first_present(station_row, "SurfaceTemperature", "Surface"))
+            ),
+            air_temp_C=_float_or_nan(
+                _first_present(row, "Air", "AirTemperature", default=_first_present(station_row, "AirTemperature", "Air"))
+            ),
+        )
+        ds.drops.append(drop)
+
+    if load_histories and history_rows:
+        _attach_dynatest_histories(ds, history_rows, drop_no_by_id)
+
+    return ds
+
+
+def _attach_dynatest_histories(ds: FWDDataset, history_rows: List[dict], drop_no_by_id: Dict[str, int]) -> None:
+    grouped: Dict[Tuple[str, int], List[dict]] = {}
+    for row in history_rows:
+        drop_id = str(_first_present(row, "DropID", default=""))
+        drop_no = drop_no_by_id.get(drop_id)
+        if drop_no is None:
+            continue
+        station_id = str(_first_present(row, "StationID", default=""))
+        grouped.setdefault((station_id, drop_no), []).append(row)
+
+    station_order = {str(i + 1): d.station for i, d in enumerate(ds.representative_drops(drop_number=1))}
+    drops_by_key = {(d.station, d.drop_number): d for d in ds.drops}
+
+    for (station_id, drop_no), rows in grouped.items():
+        station = station_order.get(station_id, station_id)
+        drop = drops_by_key.get((station, drop_no))
+        if drop is None:
+            continue
+        time_s = [_float_or_nan(_first_present(row, "Time", default=0.0)) / 1000.0 for row in rows]
+        force = [_float_or_nan(_first_present(row, "Force", "Load", default=np.nan)) for row in rows]
+        disp_cols = []
+        for i in range(1, 10):
+            values = [_first_present(row, f"D{i}", default=None) for row in rows]
+            if all(v is None for v in values):
+                continue
+            disp_cols.append([_float_or_nan(v) for v in values])
+        if not disp_cols:
+            continue
+        drop.time_history = _resample_columns(
+            time_s,
+            force,
+            disp_cols,
+            station=drop.station,
+            drop_number=drop.drop_number,
+            force_scale=_LB_TO_KN,
+            displacement_scale=_MILS_TO_MM,
+        )
+
 def read_dynatest(
     fwd_file: str | Path,
     sensor_offsets_mm: Optional[Sequence[float]] = None,
@@ -842,10 +1085,18 @@ def read_kuab(
         raise FileNotFoundError(f"Kuab FWD file not found: {fwd_path}")
 
     try:
-        with open(fwd_path, encoding="latin-1") as fh:
-            lines = fh.readlines()
+        lines = _read_text_lines(fwd_path)
     except Exception as exc:
         raise IOError(f"Cannot read Kuab FWD file: {exc}") from exc
+
+    if any(("IKUAB" in line or line.strip().startswith("Distance")) for line in lines[:80]):
+        return _read_kuab_peak_lines(
+            fwd_path,
+            lines,
+            sensor_offsets_mm=sensor_offsets_mm,
+            load_plate_radius_mm=load_plate_radius_mm,
+            skip_seating=skip_seating,
+        )
 
     ds = FWDDataset(
         source_file=str(fwd_path),
@@ -934,3 +1185,211 @@ def read_kuab(
         ds.sensor_offsets_mm = file_offsets
 
     return ds
+
+
+def read_kuab_folder(
+    folder: str | Path,
+    sensor_offsets_mm: Optional[Sequence[float]] = None,
+    load_plate_radius_mm: float = 150.0,
+    skip_seating: bool = False,
+    load_histories: bool = True,
+) -> FWDDataset:
+    """
+    Read a Kuab ViscoWave V3 folder containing one ``*.fwd`` peak file and
+    optional ``*.HST`` time-history files.
+
+    This is the Python counterpart of the ViscoWave ``Kuab.r`` workflow.  Kuab
+    files are commonly UTF-16LE.  Peak forces are interpreted as pounds and
+    deflections as mils, matching the labels and exports in the original script.
+    """
+    folder_path = Path(folder)
+    if not folder_path.exists():
+        raise FileNotFoundError(f"Kuab folder not found: {folder_path}")
+
+    fwd_files = sorted(folder_path.glob("*.fwd")) + sorted(folder_path.glob("*.FWD"))
+    if not fwd_files:
+        raise FileNotFoundError(f"No Kuab .fwd file found in {folder_path}")
+
+    ds = read_kuab(
+        fwd_files[0],
+        sensor_offsets_mm=sensor_offsets_mm,
+        load_plate_radius_mm=load_plate_radius_mm,
+        skip_seating=skip_seating,
+    )
+    ds.source_file = str(folder_path)
+
+    if not load_histories:
+        return ds
+
+    histories: Dict[Tuple[str, int], FWDTimeHistory] = {}
+    for hst_file in sorted(folder_path.glob("*.HST")) + sorted(folder_path.glob("*.hst")):
+        histories.update(_parse_kuab_hst_file(hst_file))
+
+    for drop in ds.drops:
+        key = (drop.station, drop.drop_number)
+        if key in histories:
+            drop.time_history = histories[key]
+    return ds
+
+
+def _read_text_lines(path: Path) -> List[str]:
+    for enc in ("utf-16", "utf-16le", "latin-1"):
+        try:
+            with open(path, encoding=enc) as fh:
+                return fh.readlines()
+        except UnicodeError:
+            continue
+    with open(path, encoding="latin-1") as fh:
+        return fh.readlines()
+
+
+def _header_tokens(line: str) -> List[str]:
+    return re.findall(r"[A-Za-z][A-Za-z0-9()]*", line)
+
+
+def _number_tokens(line: str) -> List[float]:
+    return [float(x) for x in re.findall(r"-?(?:\d+(?:\.\d*)?|\.\d+)", line)]
+
+
+def _read_kuab_peak_lines(
+    fwd_path: Path,
+    lines: List[str],
+    *,
+    sensor_offsets_mm: Optional[Sequence[float]],
+    load_plate_radius_mm: float,
+    skip_seating: bool,
+) -> FWDDataset:
+    header: List[str] = []
+    rows: List[List[float]] = []
+    in_data = False
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if "Distance" in stripped:
+            header = _header_tokens(stripped)
+            in_data = True
+            continue
+        if not in_data:
+            continue
+        nums = _number_tokens(stripped)
+        if len(nums) >= 6:
+            rows.append(nums)
+
+    if not rows:
+        raise ValueError(f"No Kuab peak rows found in {fwd_path}")
+
+    if header and len(rows[0]) == len(header) + 2:
+        header = header[:-1] + ["Time(H)", "Time(M)", "Time(S)"]
+    if not header or len(header) != len(rows[0]):
+        header = _default_kuab_peak_header(len(rows[0]))
+
+    offsets = np.asarray(sensor_offsets_mm, dtype=np.float64) if sensor_offsets_mm is not None else _DEFAULT_OFFSETS_MM
+    ds = FWDDataset(
+        source_file=str(fwd_path),
+        device_type="Kuab",
+        sensor_offsets_mm=offsets,
+    )
+
+    for values in rows:
+        row = dict(zip(header, values))
+        station_value = _first_present(row, "Station", default=values[0])
+        station_num = _float_or_nan(station_value)
+        station = str(int(station_num)) if np.isfinite(station_num) and station_num.is_integer() else str(station_value)
+        drop_no = int(_float_or_nan(_first_present(row, "Imp", "Impact", "Drop", default=1)))
+        if skip_seating and drop_no == 1:
+            continue
+
+        d_items = []
+        for name, value in row.items():
+            m = re.fullmatch(r"D(\d+)", str(name))
+            if m:
+                d_items.append((int(m.group(1)), value))
+        d_items.sort(key=lambda item: item[0])
+        deflections_mm = np.asarray([_float_or_nan(v) * _MILS_TO_MM for _, v in d_items[:9]], dtype=np.float64)
+
+        drop = FWDDrop(
+            station=station,
+            drop_number=drop_no,
+            distance_m=_float_or_nan(_first_present(row, "Milepost", "JDistance", "Distance", default=0.0)),
+            load_kN=_float_or_nan(_first_present(row, "Load", "Force", default=np.nan)) * _LB_TO_KN,
+            deflections_mm=deflections_mm,
+            sensor_offsets_mm=offsets[: len(deflections_mm)],
+            load_radius_mm=load_plate_radius_mm,
+            pavement_temp_C=_float_or_nan(_first_present(row, "Pave", "Pavement", "Surface", default=np.nan)),
+            air_temp_C=_float_or_nan(_first_present(row, "Air", default=np.nan)),
+        )
+        ds.drops.append(drop)
+
+    return ds
+
+
+def _default_kuab_peak_header(n_cols: int) -> List[str]:
+    base = ["Station", "Milepost", "Imp", "Load"]
+    remaining = max(n_cols - len(base) - 5, 0)
+    sensors = [f"D{i}" for i in range(remaining)]
+    tail = ["Air", "Pave", "Time(H)", "Time(M)", "Time(S)"]
+    return (base + sensors + tail)[:n_cols]
+
+
+def _parse_kuab_hst_file(hst_file: Path) -> Dict[Tuple[str, int], FWDTimeHistory]:
+    lines = _read_text_lines(hst_file)
+    records: Dict[Tuple[str, int], FWDTimeHistory] = {}
+    station = ""
+    drop_no = 1
+    header: List[str] = []
+    rows: List[dict] = []
+
+    def flush() -> None:
+        if not station or not rows or not header:
+            return
+        time_s = [_float_or_nan(_first_present(row, "Time", default=0.0)) / 1000.0 for row in rows]
+        force = [_float_or_nan(_first_present(row, "Load", "Force", default=np.nan)) for row in rows]
+
+        d_items = []
+        for name in header:
+            m = re.fullmatch(r"D(\d+)", name)
+            if m:
+                d_items.append((int(m.group(1)), name))
+        d_items.sort(key=lambda item: item[0])
+        if not d_items:
+            return
+        disps = [[_float_or_nan(row.get(name)) for row in rows] for _, name in d_items[:9]]
+        records[(station, drop_no)] = _resample_columns(
+            time_s,
+            force,
+            disps,
+            station=station,
+            drop_number=drop_no,
+            force_scale=_LB_TO_KN,
+            displacement_scale=_MILS_TO_MM,
+        )
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if "Station" in stripped:
+            flush()
+            rows = []
+            m = re.search(r"Station\s*:\s*(\d+)", stripped, re.IGNORECASE)
+            station = m.group(1) if m else station
+            continue
+        if "Impact Number" in stripped:
+            flush()
+            rows = []
+            m = re.search(r"Impact Number\s*:\s*(\d+)", stripped, re.IGNORECASE)
+            drop_no = int(m.group(1)) if m else drop_no
+            continue
+        if re.search(r"\bTime\s+Load\b", stripped, re.IGNORECASE):
+            header = _header_tokens(stripped)
+            rows = []
+            continue
+        if header:
+            nums = _number_tokens(stripped)
+            if len(nums) >= len(header):
+                rows.append(dict(zip(header, nums[: len(header)])))
+
+    flush()
+    return records

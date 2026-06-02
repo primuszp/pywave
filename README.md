@@ -49,8 +49,10 @@ See [LICENSE](LICENSE) for the full license text.
 | FWD file import | — | Pure Python (`fwd_io` module) |
 | JILS *.DAT reader | — | `read_jils()` |
 | JILS *.THY time history reader | — | `read_jils_thy()`, auto-loaded with DAT |
-| Dynatest *.FWD reader | — | `read_dynatest()` |
-| Kuab *.fwd reader | — | `read_kuab()` |
+| Dynatest Access database reader | R/ODBC script | `read_dynatest_access()` |
+| Dynatest *.FWD text reader | — | `read_dynatest()` |
+| Kuab *.fwd peak reader | R script | `read_kuab()` |
+| Kuab *.HST + *.fwd folder workflow | R script | `read_kuab_folder()` |
 | Automatic FWD format detection | — | `read_fwd()` |
 | Tabular FWD export | — | `FWDDataset.to_records()`, `FWDDataset.to_dataframe()` |
 | Deflection basin indices (SCI, BDI, BCI, AREA) | Excel formulas | `indices.DeflectionBasin` |
@@ -100,6 +102,12 @@ pip install -e ".[dev]"
 
 **Platform support:** Windows x64 and macOS (Intel x86\_64 + Apple Silicon ARM64) with packaged native libraries. Linux source-build support is documented, but Linux binaries are not included in the current release bundle.
 
+Dynatest Access database import requires the optional Access/ODBC dependency:
+
+```bash
+pip install "viscowave[access]"
+```
+
 ---
 
 ## Quick Start
@@ -130,7 +138,7 @@ plt.xlabel("Time (ms)"); plt.ylabel("Deflection (mm)")
 ### 2. Load FWD data (with time histories)
 
 ```python
-from viscowave.fwd_io import read_fwd, read_jils
+from viscowave.fwd_io import read_fwd, read_jils, read_kuab_folder
 
 # Load JILS FWD survey — THY time history file auto-loaded if present
 ds = read_jils(
@@ -142,6 +150,9 @@ print(ds)  # FWDDataset(device='JILS', stations=10, drops=30)
 # Or let pywave choose the reader from the file extension/header
 ds_auto = read_fwd("sample/JILS_Sample.DAT")
 rows = ds_auto.to_records()  # plain dictionaries, ready for reporting/export
+
+# Kuab ViscoWave V3 folders can be loaded as a peak + time-history workflow
+kuab_ds = read_kuab_folder("path/to/kuab_folder")
 
 # Iterate representative drops (drop 2 = first test drop after seating)
 for drop in ds.representative_drops(drop_number=2):
@@ -262,7 +273,7 @@ print(f"Viscoelastic max deflection: {result.max_displacement('mm'):.3f} mm")
 
 ```
 viscowave/
-├── __init__.py          # Public API, version 2.2.0
+├── __init__.py          # Public API, version 2.3.0
 │
 ├── FORWARD ANALYSIS (core — wraps ViscoWave C++ library by H.S. Lee)
 ├── builders.py          # AnalysisBuilder (fluent API), AnalysisResult

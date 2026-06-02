@@ -4,7 +4,7 @@ import numpy as np
 
 import viscowave
 from viscowave.dynmod import SigmoidModel, reduced_frequency, wlf_shift_factor
-from viscowave.fwd_io import read_fwd, read_jils
+from viscowave.fwd_io import read_fwd, read_jils, read_kuab_folder
 from viscowave.indices import DeflectionBasin, compute_area
 
 
@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_package_imports_and_native_libraries_load():
     info = viscowave.get_platform_info()
 
-    assert viscowave.__version__ == "2.2.0"
+    assert viscowave.__version__ == "2.3.0"
     assert info["library_status"] == "loaded"
 
 
@@ -67,3 +67,43 @@ def test_dynamic_modulus_master_curve_helpers():
     assert reduced_frequency(10.0, log_shift) == 10.0
     assert model.modulus(temp_C=20.0, freq_Hz=10.0) > 0
     assert len(model.master_curve([1, 10], [5, 20]).reduced_freqs_Hz) == 4
+
+
+def test_kuab_folder_reader_parses_utf16_peak_and_history(tmp_path):
+    fwd = tmp_path / "survey.fwd"
+    fwd.write_text(
+        "\n".join(
+            [
+                "IKUAB",
+                "Station JDistance Imp Load D0 D1 D2 Air Pave Time",
+                "1 10.0 1 9000 10 8 6 20 25 12 30 00",
+                "1 10.0 2 9500 11 9 7 21 26 12 31 00",
+            ]
+        ),
+        encoding="utf-16le",
+    )
+    hst = tmp_path / "station1.HST"
+    hst.write_text(
+        "\n".join(
+            [
+                "Station : 1",
+                "Impact Number : 2",
+                "Time Load D0 D1 D2",
+                "0.0 0.0 0.0 0.0 0.0",
+                "0.2 9500.0 11.0 9.0 7.0",
+                "59.8 0.0 0.0 0.0 0.0",
+            ]
+        ),
+        encoding="utf-16le",
+    )
+
+    ds = read_kuab_folder(tmp_path)
+    ds_auto = read_fwd(tmp_path)
+
+    assert ds.device_type == "Kuab"
+    assert ds.num_drops == 2
+    assert ds_auto.device_type == "Kuab"
+    assert np.isclose(ds.drops[1].load_kN, 9500 * 0.0044482216152605)
+    assert np.allclose(ds.drops[1].deflections_mm, np.array([11, 9, 7]) * 0.0254)
+    assert ds.drops[1].time_history is not None
+    assert ds.drops[1].time_history.n_samples == 300
