@@ -4,6 +4,20 @@ All notable changes to the ViscoWave project.
 
 ---
 
+## [2.3.1] - 2026-06-03
+
+### Fixed
+- Corrected JILS DAT metadata handling so GPS coordinates and notes apply to
+  every drop in the intended station block.
+- Made example scripts runnable directly from a source checkout on Windows.
+- Replaced Windows-console-incompatible status symbols in example output.
+
+### Changed
+- Updated the README feature list to describe only the implemented package API.
+- Refreshed example descriptions to avoid outdated release wording.
+
+---
+
 ## [2.0.0] - 2026-02-16
 
 ### 🎉 Major Release: Modern API

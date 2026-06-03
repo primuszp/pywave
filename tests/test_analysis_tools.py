@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_package_imports_and_native_libraries_load():
     info = viscowave.get_platform_info()
 
-    assert viscowave.__version__ == "2.3.0"
+    assert viscowave.__version__ == "2.3.1"
     assert info["library_status"] == "loaded"
 
 

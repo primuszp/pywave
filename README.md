@@ -109,6 +109,12 @@ pip install "viscowave[access]"
 
 ---
 
+## Release v2.3.1 Highlights
+
+This maintenance release fixes JILS station metadata handling, keeps the example
+scripts runnable directly from a source checkout on Windows, and updates the
+documented feature list to match the implemented API.
+
 ## Release v2.3.0 Highlights
 
 This release includes Python readers based on the ViscoWave V3 FWD import
@@ -294,7 +300,7 @@ print(f"Viscoelastic max deflection: {result.max_displacement('mm'):.3f} mm")
 
 ```
 viscowave/
-├── __init__.py          # Public API, version 2.3.0
+├── __init__.py          # Public API, version 2.3.1
 │
 ├── FORWARD ANALYSIS (core — wraps ViscoWave C++ library by H.S. Lee)
 ├── builders.py          # AnalysisBuilder (fluent API), AnalysisResult

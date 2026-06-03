@@ -98,7 +98,7 @@ from . import dynmod
 if TYPE_CHECKING:
     pass
 
-__version__ = "2.3.0"
+__version__ = "2.3.1"
 __author__ = "H.S. Lee; pywave maintainers"
 __all__ = [
     # Modern High-Level API (Recommended)
