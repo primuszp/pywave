@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Relaxation_Sig_to_Prony Basic Example - Production Ready
+Relaxation_Sig_to_Prony Basic Example
 
 This example demonstrates conversion of relaxation sigmoid parameters
 to Prony series representation with proper error handling.
 """
 
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,7 +21,7 @@ from viscowave.api import RelaxationPronyModel
 def main():
     """Convert sigmoid parameters to Prony series and display results."""
     print("=" * 70)
-    print("Relaxation_Sig_to_Prony Example - Production Ready")
+    print("Relaxation_Sig_to_Prony Example")
     print("=" * 70)
     print()
 
@@ -56,7 +59,7 @@ def main():
         model = RelaxationPronyModel()
         result = model.compute(sigmoid)
 
-        print(f"  ✓ Conversion complete!")
+        print("  OK: Conversion complete!")
         print(f"  - Prony elements: {result.num_prony_elements}")
         print(f"  - Output shape: {result.matrix.shape}")
         print()
@@ -80,7 +83,7 @@ def main():
     moduli = prony_matrix[:, 1:]  # Moduli for each sigmoid set
 
     print(f"  Prony Series Components:")
-    print(f"  {'Index':<8} {'Time τ (s)':<15} {'Modulus E':<15}")
+    print(f"  {'Index':<8} {'Time tau (s)':<15} {'Modulus E':<15}")
     print(f"  {'-' * 40}")
     for i in range(result.num_prony_elements):
         print(f"  {i+1:<8} {time_constants[i]:<15.6e} {moduli[i, 0]:<15.6f}")
@@ -89,7 +92,7 @@ def main():
     print(f"  Statistics:")
     print(f"  - Time range: {time_constants.min():.2e} to {time_constants.max():.2e} s")
     print(f"  - Modulus range: {moduli.min():.2f} to {moduli.max():.2f}")
-    print(f"  - Total E∞: {np.sum(moduli[:, 0]):.2f}")
+    print(f"  - Total E_inf: {np.sum(moduli[:, 0]):.2f}")
     print()
 
     # ========================================================================
@@ -111,8 +114,8 @@ def main():
     time_eval = np.logspace(-6, 2, 200)  # Evaluation times
 
     # Reconstruct E(t) from Prony series
-    # E(t) = E∞ + Σ Ei * exp(-t/τi)
-    E_infinity = moduli[0, 0]  # Assuming first term is E∞
+    # E(t) = E_inf + sum(E_i * exp(-t / tau_i))
+    E_infinity = moduli[0, 0]  # Assuming first term is E_inf
     E_t = np.ones_like(time_eval) * E_infinity
 
     for i in range(1, result.num_prony_elements):
@@ -132,13 +135,13 @@ def main():
     from pathlib import Path
     output_path = Path(__file__).parent / "relaxation_results.png"
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    print(f"  ✓ Figure saved: {output_path}")
+    print(f"  OK: Figure saved: {output_path}")
 
     plt.show()
 
     print()
     print("=" * 70)
-    print("Conversion completed successfully! ✓")
+    print("Conversion completed successfully!")
     print("=" * 70)
 
     return 0

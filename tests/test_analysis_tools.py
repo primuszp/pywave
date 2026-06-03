@@ -29,6 +29,32 @@ def test_jils_reader_loads_dat_and_time_histories():
     assert ds.representative_drops(drop_number=2)[0].time_history is not None
 
 
+def test_jils_reader_applies_station_metadata_to_all_drops(tmp_path):
+    dat = tmp_path / "survey.DAT"
+    dat.write_text(
+        "\n".join(
+            [
+                "M5",
+                "1 1 0.000 1 1 1 1 1 1 1 1 1 1 4.0 70.0",
+                "1 2 0.000 1 2 2 2 2 2 2 2 2 2 4.1 70.0",
+                "GPS: Quality : DGPS Fix   Latitude = 34 deg58.140780  N   Longitude = 89 deg49.043990   W   PDOP = 0.00",
+                "Note: station two",
+                "2 1 10.000 1 3 3 3 3 3 3 3 3 3 4.2 71.0",
+                "2 2 10.000 1 4 4 4 4 4 4 4 4 4 4.3 71.0",
+            ]
+        ),
+        encoding="latin-1",
+    )
+
+    ds = read_jils(dat, load_thy=False)
+
+    assert ds.drops[0].gps_lat is None
+    assert ds.drops[2].notes == "station two"
+    assert ds.drops[3].notes == "station two"
+    assert ds.drops[2].gps_lat == ds.drops[3].gps_lat
+    assert ds.drops[2].gps_lon == ds.drops[3].gps_lon
+
+
 def test_read_fwd_auto_detects_jils_dat():
     ds = read_fwd(ROOT / "sample" / "JILS_Sample.DAT")
 

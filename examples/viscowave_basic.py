@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-ViscoWave Basic Example - Modern API 2.0
+ViscoWave Basic Example - Modern API
 
-This example demonstrates the modern ViscoWave 2.0 API with fluent builder pattern.
+This example demonstrates the modern viscowave API with fluent builder pattern.
 Much simpler than the legacy API with automatic unit handling!
 """
 
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -23,7 +25,7 @@ from viscowave import (
 def main():
     """Run ViscoWave analysis and plot results."""
     print("=" * 70)
-    print("ViscoWave Basic Example - Modern API 2.0")
+    print("ViscoWave Basic Example - Modern API")
     print("=" * 70)
     print()
 
@@ -90,7 +92,7 @@ def main():
             .run()
         )
 
-        print(f"  ✓ Analysis complete!")
+        print("  OK: Analysis complete!")
         print(f"  - Sensors: {result.num_sensors}")
         print(f"  - Time steps: {result.num_time_steps}")
         print()
@@ -140,13 +142,13 @@ def main():
     # Save figure
     output_path = Path(__file__).parent / "viscowave_results.png"
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    print(f"  ✓ Figure saved: {output_path}")
+    print(f"  OK: Figure saved: {output_path}")
 
     plt.show()
 
     print()
     print("=" * 70)
-    print("Analysis completed successfully! ✓")
+    print("Analysis completed successfully!")
     print("Modern API is much simpler - compare with legacy API!")
     print("=" * 70)
 

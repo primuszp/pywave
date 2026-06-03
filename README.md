@@ -1,10 +1,9 @@
 # pywave — Python Wrapper and Analysis Tools for ViscoWave
 
-**pywave** is a professional Python library for pavement structure analysis using
-Falling Weight Deflectometer (FWD) data. It wraps the **ViscoWave** dynamic Finite
-Layer Method (FLM) engine and adds pure-Python equivalents of all ViscoWave Excel
-analyses: FWD data import, deflection basin indices, backcalculation, and dynamic
-modulus master curves.
+**pywave** is a Python library for pavement structure analysis using Falling
+Weight Deflectometer (FWD) data. It wraps the **ViscoWave** dynamic Finite Layer
+Method (FLM) engine and adds Python tools for FWD data import, deflection basin
+indices, backcalculation, and dynamic modulus master curves.
 
 ---
 
@@ -41,31 +40,31 @@ See [LICENSE](LICENSE) for the full license text.
 
 ---
 
-## What pywave adds on top of ViscoWave
+## Supported features
 
-| Feature | ViscoWave (original) | pywave |
-|---|---|---|
-| Pavement forward analysis | Excel + VBA | Python fluent builder API |
-| FWD file import | — | Pure Python (`fwd_io` module) |
-| JILS *.DAT reader | — | `read_jils()` |
-| JILS *.THY time history reader | — | `read_jils_thy()`, auto-loaded with DAT |
-| Dynatest Access database reader | R/ODBC script | `read_dynatest_access()` |
-| Dynatest *.FWD text reader | — | `read_dynatest()` |
-| Kuab *.fwd peak reader | R script | `read_kuab()` |
-| Kuab *.HST + *.fwd folder workflow | R script | `read_kuab_folder()` |
-| Automatic FWD format detection | — | `read_fwd()` |
-| Tabular FWD export | — | `FWDDataset.to_records()`, `FWDDataset.to_dataframe()` |
-| Deflection basin indices (SCI, BDI, BCI, AREA) | Excel formulas | `indices.DeflectionBasin` |
-| Subgrade modulus estimate (Boussinesq) | Excel | `compute_subgrade_modulus()` |
-| AASHTO Structural Number estimate | Excel | `compute_structural_number_fwd()` |
-| Backcalculation (layer moduli) | Excel iterative | `backcalc.backcalculate()` (scipy L-BFGS-B) |
-| Batch backcalculation | Excel macro | `backcalculate_batch()` |
-| Dynamic modulus master curve | Excel worksheet | `dynmod.SigmoidModel` |
-| WLF / Arrhenius shift factors | Excel | `wlf_shift_factor()` / `arrhenius_shift_factor()` |
-| Prony series conversion | ViscoWave DLL | `RelaxationPronyModel` (Python wrapper) |
-| SI **and** Imperial unit handling | Imperial only | Automatic via `units` module |
-| pint.Quantity input support | None | Optional (`pip install viscowave[units]`) |
-| Type-safe API | None | Full type hints (PEP 561) |
+This list is limited to features implemented in the current package API.
+
+| Feature | API |
+|---|---|
+| Forward pavement response analysis through the native ViscoWave engine | `AnalysisBuilder`, `analyze()`, `quick_analysis()` |
+| Flexible and rigid pavement helper functions | `analyze_flexible_pavement()`, `analyze_rigid_pavement()` |
+| Common pavement and load presets | `viscowave.presets.Pavements`, `viscowave.presets.Loads` |
+| Low-level native-library wrappers | `ViscoWaveModel`, `RelaxationPronyModel` |
+| JILS peak file import | `read_jils()` for `*.DAT` files |
+| JILS time-history import | `read_jils_thy()` and automatic companion `*.THY` loading in `read_jils()` |
+| Dynatest Access database import | `read_dynatest_access()` for `*.mdb` / `*.accdb` with `pyodbc` and an Access ODBC driver |
+| Dynatest text import | `read_dynatest()` for whitespace-delimited `*.FWD` exports |
+| Kuab peak file import | `read_kuab()` for supported text/UTF-16 `*.fwd` exports |
+| Kuab folder import with optional histories | `read_kuab_folder()` for one `*.fwd` plus optional `*.HST` files |
+| Automatic FWD reader selection | `read_fwd()` for JILS, Dynatest Access, Dynatest text, Kuab files, and Kuab folders |
+| FWD data containers and export | `FWDDrop`, `FWDTimeHistory`, `FWDDataset.to_records()`, optional `FWDDataset.to_dataframe()` |
+| Deflection basin indicators | `DeflectionBasin`, `compute_sci()`, `compute_bdi()`, `compute_bci()`, `compute_area()` |
+| Approximate subgrade modulus and Structural Number estimates | `compute_subgrade_modulus()`, `compute_structural_number_fwd()` |
+| Layer-modulus backcalculation | `backcalculate()` and `backcalculate_batch()` with optional `scipy` |
+| Dynamic modulus master-curve helpers | `SigmoidModel`, `MasterCurveData`, `wlf_shift_factor()`, `arrhenius_shift_factor()` |
+| SI and Imperial unit conversion | `viscowave.units` and builder `unit_system` support |
+| Optional `pint.Quantity` input support | Install with `pip install viscowave[units]` |
+| Type hints for downstream users | PEP 561 marker: `py.typed` |
 
 ---
 
@@ -112,14 +111,14 @@ pip install "viscowave[access]"
 
 ## Release v2.3.0 Highlights
 
-This release ports the ViscoWave V3 FWD import scripts from
-`C:\ProgramData\ARA\ViscoWave_V3` into Python:
+This release includes Python readers based on the ViscoWave V3 FWD import
+workflows:
 
 - `Dynatest.r` → `read_dynatest_access()` for Dynatest Access databases
   (`*.mdb`, `*.accdb`) with `Drops`, `Stations`, and `Histories` tables.
 - `Kuab.r` → `read_kuab_folder()` for Kuab folders containing UTF-16 `*.fwd`
   peak deflection files and optional `*.HST` time-history files.
-- Both imported time-history workflows resample to ViscoWave's standard
+- Imported time-history workflows resample to ViscoWave's standard
   0.0002 s time step over 0.0598 s and return `FWDTimeHistory` objects.
 - `read_fwd()` now auto-detects JILS files, Dynatest Access databases,
   Dynatest text files, Kuab peak files, and Kuab folders.

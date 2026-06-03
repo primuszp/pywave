@@ -24,7 +24,7 @@ python examples/quick_start.py
 ### 2. [viscowave_basic.py](viscowave_basic.py)
 **Complete ViscoWave analysis example**
 
-Production-ready example showing:
+Complete example showing:
 - Full pavement response analysis
 - Proper error handling
 - Unit conversions
@@ -51,7 +51,7 @@ python examples/viscowave_basic.py
 ### 3. [relaxation_basic.py](relaxation_basic.py)
 **Complete Relaxation_Sig_to_Prony example**
 
-Production-ready example showing:
+Complete example showing:
 - Sigmoid to Prony series conversion
 - Results analysis and statistics
 - Prony series visualization

@@ -474,7 +474,9 @@ def read_jils(
 
     pending_gps: Optional[tuple] = None
     pending_note: str = ""
-    current_station_drops: List[FWDDrop] = []
+    current_gps: Optional[tuple] = None
+    current_note: str = ""
+    current_station: Optional[str] = None
 
     for line in lines:
         stripped = line.strip()
@@ -498,6 +500,13 @@ def read_jils(
         drop_num = int(dm.group(2))
         distance_ft = float(dm.group(3))
         values = [float(v) for v in dm.group(5).split()]
+
+        if station_id != current_station:
+            current_station = station_id
+            current_gps = pending_gps
+            current_note = pending_note
+            pending_gps = None
+            pending_note = ""
 
         if skip_seating and drop_num == 1:
             continue
@@ -523,7 +532,7 @@ def read_jils(
 
         drop_offsets = offsets[: len(deflections_mm)]
 
-        lat, lon = pending_gps if pending_gps else (None, None)
+        lat, lon = current_gps if current_gps else (None, None)
 
         drop = FWDDrop(
             station=station_id,
@@ -536,16 +545,9 @@ def read_jils(
             pavement_temp_C=temp_c,
             gps_lat=lat,
             gps_lon=lon,
-            notes=pending_note,
+            notes=current_note,
         )
         ds.drops.append(drop)
-
-        # Reset pending GPS/note only when we advance station
-        if current_station_drops and current_station_drops[0].station != station_id:
-            pending_gps = None
-            pending_note = ""
-            current_station_drops = []
-        current_station_drops.append(drop)
 
     # Auto-load companion THY file
     if load_thy:

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-ViscoWave SI Units Example - Modern API 2.0
+ViscoWave SI Units Example - Modern API
 
-This example demonstrates the modern ViscoWave 2.0 API with SI (metric) units.
+This example demonstrates the modern viscowave API with SI (metric) units.
 The modern API has built-in SI unit support - no manual conversions needed!
 
 SI Units Used:
@@ -15,6 +15,8 @@ SI Units Used:
 
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import matplotlib.pyplot as plt
 
@@ -29,7 +31,7 @@ from viscowave import (
 def main():
     """Run ViscoWave analysis using SI units."""
     print("=" * 70)
-    print("ViscoWave SI Units Example - Modern API 2.0")
+    print("ViscoWave SI Units Example - Modern API")
     print("=" * 70)
     print()
 
@@ -98,7 +100,7 @@ def main():
             .run()
         )
 
-        print(f"  ✓ Analysis complete!")
+        print("  OK: Analysis complete!")
         print(f"  - Sensors: {result.num_sensors}")
         print(f"  - Time steps: {result.num_time_steps}")
         print()
@@ -148,7 +150,7 @@ def main():
     # Save figure
     output_path = Path(__file__).parent / "viscowave_si_results.png"
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    print(f"  ✓ Figure saved: {output_path}")
+    print(f"  OK: Figure saved: {output_path}")
 
     plt.show()
 
@@ -157,13 +159,13 @@ def main():
     # ========================================================================
     print()
     print("=" * 70)
-    print("Analysis completed successfully! ✓")
+    print("Analysis completed successfully!")
     print()
     print("Modern API Benefits with SI Units:")
-    print("  ✅ No manual unit conversions required")
-    print("  ✅ Cleaner, more readable code")
-    print("  ✅ Type-safe with full IDE support")
-    print("  ✅ Automatic result unit conversion")
+    print("  OK: No manual unit conversions required")
+    print("  OK: Cleaner, more readable code")
+    print("  OK: Type-safe with full IDE support")
+    print("  OK: Automatic result unit conversion")
     print("=" * 70)
 
     return 0

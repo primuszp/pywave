@@ -2,9 +2,14 @@
 """
 Quick Start Example - Modern API
 
-This is the simplest possible example showing the modern ViscoWave 2.0 API.
+This is the simplest possible example showing the modern viscowave API.
 Perfect for getting started or testing your installation.
 """
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 from viscowave import AnalysisBuilder, get_platform_info
@@ -65,5 +70,5 @@ print(f"Max displacement: {result.max_displacement('in'):.4f} inches")
 print()
 
 print("=" * 40)
-print("✓ Both examples completed successfully!")
+print("OK: Both examples completed successfully!")
 print("=" * 40)

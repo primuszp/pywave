@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Modern API Demo - ViscoWave 2.0
+Modern API Demo - viscowave
 
-This example demonstrates the new fluent API introduced in ViscoWave 2.0.
+This example demonstrates the fluent viscowave API.
 The modern API provides:
 - Automatic unit handling (SI and Imperial)
 - Chainable builder pattern
@@ -15,6 +15,8 @@ Compare this to the legacy API examples to see the improvement in usability.
 
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -304,14 +306,14 @@ def main():
     print("All examples completed successfully!")
     print("=" * 70)
     print()
-    print("Key Improvements in ViscoWave 2.0:")
-    print("  ✓ Fluent/chainable API for better readability")
-    print("  ✓ Automatic unit handling (SI and Imperial)")
-    print("  ✓ Type-safe configuration with dataclasses")
-    print("  ✓ Convenient result access methods")
-    print("  ✓ Preset configurations for common cases")
-    print("  ✓ Helper functions for quick analysis")
-    print("  ✓ Backward compatible with legacy API")
+    print("Key API features:")
+    print("  OK: Fluent/chainable API for better readability")
+    print("  OK: Automatic unit handling (SI and Imperial)")
+    print("  OK: Type-safe configuration with dataclasses")
+    print("  OK: Convenient result access methods")
+    print("  OK: Preset configurations for common cases")
+    print("  OK: Helper functions for quick analysis")
+    print("  OK: Backward compatible with legacy API")
     print()
 
     return 0
